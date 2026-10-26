@@ -2262,10 +2262,17 @@ class PolyDataFilters(DataSetFilters):
         normal.SetNonManifoldTraversal(non_manifold_traversal)
         normal.SetFeatureAngle(feature_angle)
 
-        # vtkPolyDataNormals reuses any active normals, so hide them all from it
+        # vtkPolyDataNormals reuses any active normals, so hide them all from it. It
+        # can also drop a "Normals" array of a kind it does not compute, so rename those.
+        hidden = '_pyvista_hidden_normals'
         input_mesh = self.copy(deep=False)
-        input_mesh.point_data.active_normals_name = None
-        input_mesh.cell_data.active_normals_name = None
+        for data, (compute, _) in zip(
+            (input_mesh.point_data, input_mesh.cell_data), old_normals, strict=True
+        ):
+            data.active_normals_name = None
+            if not compute and 'Normals' in data:
+                # Copy, since renaming the shared array would rename it in the input
+                data[hidden] = np.array(data.pop('Normals'))
         normal.SetInputData(input_mesh)
         _update_alg(normal, progress_bar=progress_bar, message='Computing Normals')
 
@@ -2281,6 +2288,8 @@ class PolyDataFilters(DataSetFilters):
             )
             raise RuntimeError(msg)
         for data, (compute, name) in zip(attributes, old_normals, strict=True):
+            if hidden in data:
+                mesh.rename_array(hidden, 'Normals', preference=data.association.name.lower())
             if not compute and name is not None:
                 data.active_normals_name = name
 

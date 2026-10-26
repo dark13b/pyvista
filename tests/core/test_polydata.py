@@ -1026,12 +1026,15 @@ def test_compute_normals_recompute_neither_requested(sphere_stale_normals):
         assert np.allclose(data['Normals'], (1.0, 0.0, 0.0))
 
 
-def test_compute_normals_recompute_stale_cell_normals_not_reused(sphere_stale_normals):
+@pytest.mark.parametrize('split_vertices', [False, True])
+def test_compute_normals_recompute_stale_cell_normals_not_reused(
+    sphere_stale_normals, split_vertices
+):
     expected = pv.Sphere()
     expected.clear_data()
-    expected = expected.compute_normals(cell_normals=False)
+    expected = expected.compute_normals(cell_normals=False, split_vertices=split_vertices)
 
-    mesh = sphere_stale_normals.compute_normals(cell_normals=False)
+    mesh = sphere_stale_normals.compute_normals(cell_normals=False, split_vertices=split_vertices)
     assert np.allclose(mesh.point_data['Normals'], expected.point_data['Normals'])
     assert mesh.cell_data.active_normals_name == 'Normals'
     assert np.allclose(mesh.cell_data['Normals'], (1.0, 0.0, 0.0))
@@ -1067,6 +1070,16 @@ def _sphere_custom_normals(dtype, *, point=True, cell=True):
             data['CustomNormals'] = np.tile((1.0, 0.0, 0.0), (n, 1)).astype(dtype)
             data.active_normals_name = 'CustomNormals'
     return sphere
+
+
+@pytest.mark.parametrize('split_vertices', [False, True])
+def test_compute_normals_keeps_inactive_normals_not_requested(split_vertices):
+    sphere = _sphere_custom_normals(np.float32)
+    sphere.cell_data['Normals'] = np.full((sphere.n_cells, 3), 2.0, dtype=np.float32)
+    mesh = sphere.compute_normals(cell_normals=False, split_vertices=split_vertices)
+    del sphere
+    assert mesh.cell_data.active_normals_name == 'CustomNormals'
+    assert np.array_equal(mesh.cell_data['Normals'], np.full((mesh.n_cells, 3), 2.0))
 
 
 @pytest.mark.parametrize('dtype', [np.float32, np.float64])
